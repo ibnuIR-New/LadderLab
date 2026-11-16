@@ -115,6 +115,16 @@ footer{border-top:1px solid var(--line);padding:36px 0 44px}.foot-row{display:fl
 :root{--grid:rgba(147,160,180,.06);--grid-major:rgba(147,160,180,.12);--ink:#1f2d5c}
 body{counter-reset:sheet;background-image:linear-gradient(var(--grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--grid-major) 1px,transparent 1px),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:144px 144px,144px 144px,24px 24px,24px 24px;background-position:center top}
 section{scroll-margin-top:76px;border-top:none}
+#tabBar{scroll-margin-top:84px}
+.savebar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-bottom:12px;padding:8px 12px;background:var(--bg-panel-2);border:1px solid var(--line);font-size:13px;color:var(--text-muted)}
+.savebar b{color:var(--text)}.savebar #sbState{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:12px}.savebar #sbState.ok{color:var(--run)}.savebar #sbState.err{color:#b3261e}
+#loginBg{position:fixed;inset:0;z-index:100;background:rgba(20,32,77,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+#loginBg[hidden]{display:none}
+#loginBox{background:var(--bg-panel);border:1px solid var(--line-bright);padding:26px;width:100%;max-width:400px}
+#loginBox h3{margin:0 0 6px}#loginBox p{margin:0 0 16px;font-size:13.5px;color:var(--text-muted)}
+#loginBox label{display:block;font-size:13px;margin:10px 0 4px;color:var(--text)}
+#loginBox input{width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--line-bright);font:inherit;background:#fff;color:var(--text)}
+#loginBox .btn-primary{margin-top:18px;width:100%}#loginErr{color:#b3261e;font-size:13px;margin-top:10px;min-height:1em}
 h1,h2{font-family:'Archivo','IBM Plex Sans',sans-serif}
 body>.wrap{position:relative}
 body>.wrap::before,body>.wrap::after{content:"";position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--line-bright);opacity:.55;pointer-events:none}
@@ -267,6 +277,7 @@ document.addEventListener('DOMContentLoaded',()=>SFX.init());
 
 <section id="jobsheet">
   <div class="section-head"><div><h2>Jobsheet praktikum</h2><p>Empat jobsheet bertahap. Buka satu bagian per layar, beri satu centang pada K3, alat &amp; bahan, dan teori, centang tiap langkah kerja, tonton video pendamping di bagian Teori, lalu selesaikan kuis untuk melacak progresmu.</p></div><span class="section-tag">4 JOBSHEET</span></div>
+  <div class="savebar" id="saveBar" hidden><span id="sbInfo"></span><span id="sbState"></span><button class="link-quiet" id="sbOut" type="button">Ganti siswa</button></div>
   <div class="tabs" id="tabBar"></div>
   <div class="tab-panel" id="panel"></div>
 </section>
@@ -483,7 +494,8 @@ $('panel').onclick=e=>{
   return}
  if(s){sec=+s.dataset.s}else if(d){sec+=+d.dataset.d}else return;
  SFX.klik();
- seen[cur].add(sec);render()};
+ seen[cur].add(sec);render();
+ if(d)$('tabBar').scrollIntoView({behavior:'smooth',block:'start'})};
 $('panel').onchange=e=>{const k=e.target.dataset.k;if(k==null)return;SFX.klik();e.target.checked?done[cur].add(k):done[cur].delete(k);if(sec==3){const lb=e.target.closest('label');if(lb)lb.classList.toggle('ck',e.target.checked)}else document.querySelector('.sec-body').innerHTML=body(JOBSHEET[cur]);updProg()};
 
 /* Rung interaktivitas */
@@ -597,7 +609,59 @@ function simInit(){clearInterval(TK);S={};I={};M={};PO=null;TC=0;const L=LAD[cur
  if(L){$('simBtns').innerHTML=L.inp.map(b=>'<button class="sim-key '+(b[3]?'stop':'')+'" data-i="'+b[0]+'" data-m="'+b[2]+'"'+(b[4]?' data-x="'+b[4]+'"':'')+'>'+b[1]+'</button>').join('');TK=setInterval(scan,100);scan()}
  else{$('ldr').innerHTML='';$('simBtns').innerHTML=m.b.map((b,i)=>'<button class="sim-key '+(b[2]?'stop':'')+'" data-k="'+i+'">'+b[0]+'</button>').join('');simDraw()}}
 $('simBtns').onclick=e=>{if(LAD[cur])return;const k=e.target.closest('.sim-key');if(!k)return;const m=SIM[cur]||SIM[0],msg=m.b[+k.dataset.k][1](S,simDraw);simDraw();const d=document.createElement('div');d.textContent='> '+msg;$('simLog').appendChild(d);$('simLog').scrollTop=1e5};
+/* ================= SIMPAN PROGRES PER SISWA ================= */
+/* Tempel URL Web App Google Apps Script di sini (berakhiran /exec). Kosong = simpan di perangkat ini saja. */
+const SYNC_URL='https://script.google.com/macros/s/AKfycbxa5pr7TOkjR02UfILIAykY5efNg4SnLt7fym6bZqV6vs9kG2V6hWocHW8Fq9UGvubTuw/exec';
+const SK='ladderlab_';
+let SISWA=null,tmr=null;
+const snap=()=>JSON.stringify({ans,fin,lulus,cur,sec,done:done.map(x=>[...x]),seen:seen.map(x=>[...x])});
+function restore(t){try{const o=JSON.parse(t),n=JOBSHEET.length;if(!o||o.ans.length!=n||o.done.length!=n)return false;ans=o.ans;fin=o.fin;lulus=o.lulus;cur=o.cur;sec=o.sec;done=o.done.map(a=>new Set(a));seen=o.seen.map(a=>new Set(a));return true}catch(e){return false}}
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}},lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+function bar(t,c){const e=$('sbState');e.textContent=t;e.className=c||''}
+const kuisTxt=c=>{const q=JOBSHEET[c].quiz;return q.filter((z,i)=>ans[c][i]===z.a).length+'/'+q.length};
+function sched(){if(!SISWA)return;bar('Menyimpan…');clearTimeout(tmr);tmr=setTimeout(push,900)}
+async function push(){
+ if(!SISWA)return;clearTimeout(tmr);const d=snap();lsSet(SK+'p_'+SISWA.nis,d);
+ if(!SYNC_URL){bar('Tersimpan di perangkat ini','ok');return}
+ try{
+  const body=JSON.stringify({nis:SISWA.nis,nama:SISWA.nama,kelas:SISWA.kelas,pct:JOBSHEET.map((x,i)=>prog(i)),kuis:JOBSHEET.map((x,i)=>kuisTxt(i)),pos:'JS'+JOBSHEET[cur].no+' · '+SEC[sec][0],data:d});
+  const r=await fetch(SYNC_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
+  const j=await r.json();
+  if(j.ok)bar('Tersimpan online '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}),'ok');else bar('Gagal menyimpan online','err');
+ }catch(e){bar('Offline — tersimpan di perangkat ini','err')}
+}
+async function masuk(nama,nis,kelas){
+ SISWA={nama,nis,kelas};lsSet(SK+'last',JSON.stringify(SISWA));
+ let data=null;
+ if(SYNC_URL){
+  try{const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);const r=await fetch(SYNC_URL+'?nis='+encodeURIComponent(nis),{signal:c.signal});clearTimeout(t);const j=await r.json();if(j.ok&&j.found&&j.data)data=j.data}catch(e){}
+ }
+ if(!data)data=lsGet(SK+'p_'+nis);
+ if(data)restore(data);
+ $('sbInfo').innerHTML='<b>'+nama.replace(/[<>&]/g,'')+'</b> · NIS '+nis.replace(/[<>&]/g,'')+(kelas?' · '+kelas.replace(/[<>&]/g,''):'');
+ $('saveBar').hidden=false;$('loginBg').hidden=true;render();push();
+}
+const _render=render;render=function(){_render();sched()};
+['click','change'].forEach(ev=>$('panel').addEventListener(ev,sched));
+$('tabBar').addEventListener('click',sched);
+window.addEventListener('online',push);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)push()});
+$('sbOut').onclick=()=>{push();try{localStorage.removeItem(SK+'last')}catch(e){}location.reload()};
+$('lgGo').onclick=()=>{const n=$('lgNama').value.trim(),i=$('lgNis').value.trim(),k=$('lgKelas').value.trim();if(!n||!i){$('loginErr').textContent='Nama dan NIS wajib diisi.';return}masuk(n,i,k)};
+['lgNama','lgNis','lgKelas'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key=='Enter')$('lgGo').click()}));
+try{const l=JSON.parse(lsGet(SK+'last')||'null');if(l){$('lgNama').value=l.nama||'';$('lgNis').value=l.nis||'';$('lgKelas').value=l.kelas||''}}catch(e){}
 render();
 </script>
+<div id="loginBg">
+  <div id="loginBox">
+    <h3>Masuk LadderLab</h3>
+    <p>Isi data sekali saja. Progresmu tersimpan otomatis dan bisa dilanjutkan kapan saja dengan NIS yang sama.</p>
+    <label for="lgNama">Nama lengkap</label><input id="lgNama" autocomplete="name">
+    <label for="lgNis">NIS</label><input id="lgNis" inputmode="numeric" autocomplete="off">
+    <label for="lgKelas">Kelas</label><input id="lgKelas" placeholder="mis. XI TOI 1" autocomplete="off">
+    <button class="btn-primary" id="lgGo" type="button">Mulai / Lanjutkan</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
 </body>
 </html>
