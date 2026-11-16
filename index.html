@@ -644,11 +644,12 @@ async function push(){
 }
 async function masuk(nama,nis,kelas){
  SISWA={nama,nis,kelas};lsSet(SK+'last',JSON.stringify(SISWA));
- let data=null;
+ let data=null,srv=false;
  if(SYNC_URL){
-  try{const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);const r=await fetch(SYNC_URL+'?nis='+encodeURIComponent(nis),{signal:c.signal});clearTimeout(t);const j=await r.json();if(j.ok&&j.found&&j.data)data=j.data}catch(e){}
+  try{const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);const r=await fetch(SYNC_URL+'?nis='+encodeURIComponent(nis),{signal:c.signal});clearTimeout(t);const j=await r.json();if(j.ok){srv=true;if(j.found&&j.data)data=j.data}}catch(e){}
  }
- if(!data)data=lsGet(SK+'p_'+nis);
+ if(srv&&!data){try{localStorage.removeItem(SK+'p_'+nis)}catch(e){}}
+ else if(!data)data=lsGet(SK+'p_'+nis);
  if(data)restore(data);
  $('sbInfo').innerHTML='<b>'+nama.replace(/[<>&]/g,'')+'</b> · NIS '+nis.replace(/[<>&]/g,'')+(kelas?' · '+kelas.replace(/[<>&]/g,''):'');
  $('saveBar').hidden=false;$('loginBg').hidden=true;render();push();
